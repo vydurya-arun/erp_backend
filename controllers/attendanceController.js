@@ -237,7 +237,53 @@ export const getTodayAttendance = async (req, res) => {
         ...attendance,
         date_utc: attendance.date,
         date_ist: toISTDateString(attendance.date),
-        sessions: mapSessionsWithIST(attendance.sessions || []),
+        sessions: mapSessionsWithIST([...attendance.sessions].reverse())
+      },
+    });
+  } catch (error) {
+    console.error("Get today attendance error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching today's attendance",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getTodayAttendanceRecent = async (req, res) => {
+  try {
+    const employeeId = req.user._id;
+    const today = getISTMidnight();
+
+    const attendance = await Attendance.findOne({
+      employee: employeeId,
+      date: today,
+    }).lean();
+
+    if (!attendance) {
+      return res.status(200).json({
+        success: true,
+        message: "No attendance record found for today",
+        attendance: null,
+      });
+    }
+
+    
+    const sortedSessions = [...(attendance.sessions || [])].sort(
+      (a, b) => new Date(b.checkIn) - new Date(a.checkIn)
+    );
+
+   
+    const recentSessions = sortedSessions.slice(0, 3);
+
+    return res.status(200).json({
+      success: true,
+      attendance: {
+        ...attendance,
+        date_utc: attendance.date,
+        date_ist: toISTDateString(attendance.date),
+        sessions: mapSessionsWithIST(recentSessions),
       },
     });
   } catch (error) {

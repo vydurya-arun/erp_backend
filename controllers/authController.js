@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import Admin from "../models/Admin.js";
 import Employee from "../models/Employee.js";
+import bcrypt from "bcryptjs";
 
 // Utility: Generate token & set cookie
 const generateToken = (res, userId, role, type) => {
@@ -65,9 +66,7 @@ export const login = async (req, res) => {
     }
 
     // Create JWT token
-    const token = generateToken(res, user._id, user.role || "user", type);
-
-    console.log(token,"test")
+    generateToken(res, user._id, user.role || "user", type);
 
     return res.status(200).json({
       success: true,
@@ -78,8 +77,7 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
         type,
-        token:token
-      }
+      },
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -90,6 +88,50 @@ export const login = async (req, res) => {
     });
   }
 };
+
+
+export const EmployeeLoginMobile = async(req, res) =>{
+  try {
+    const { email, password } = req.body;
+    if(!email || !password){
+      res.status(404).json({success:false,message:"Invalid Email or Password"})
+    }
+
+    const User = await Employee.findOne({email});
+    if(!User){
+       res.status(404).json({success:false,message:"Employee Not Found"})
+    }
+
+    const isMatch = await bcrypt.compare(password, User.password);
+
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: User._id, type: "Employee" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    const sentData = {
+      id:User._id,
+      name: "Ravi Kumar",
+      employeeId: "EMP1023",
+      email: "test@gmail.com",
+      phone: "9876543210",
+      role: "Employee",
+      status: "Active",
+    }
+
+    return res.status(200).json({success:true,token:token, message:"Login successfull",data:sentData})
+  } catch (error) {
+    res.status(500).json({success:false, message:"Server Error",error:error})
+  }
+}
+
 
 // =========================================
 // LOGOUT (clears cookie)
@@ -131,6 +173,7 @@ export const getProfile = async (req, res) => {
 
     // Fetch full employee profile with populated fields
     const employee = await Employee.findById(user._id)
+      .select("-password")
       .populate("department", "name") // populate only name field
       .populate("position", "name"); // populate only title field
 
